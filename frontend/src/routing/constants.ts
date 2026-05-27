@@ -8,6 +8,7 @@ export const ROUTES = {
   GROUPS: "/groups",
   GROUP_DETAIL: "/groups/:groupId",
   PROFILE: "/profile",
+  PROFILE_DETAIL: "/profile/:address",
   SETTINGS: "/settings",
   NOT_FOUND: "/404",
   ERROR: "/500",
@@ -25,4 +26,5 @@ export type RoutePath = (typeof ROUTES)[keyof typeof ROUTES];
  */
 export const buildRoute = {
   groupDetail: (groupId: string) => `/groups/${groupId}`,
+  profile: (address: string) => `/profile/${address}`,
 } as const;
