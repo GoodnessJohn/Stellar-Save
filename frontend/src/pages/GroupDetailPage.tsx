@@ -120,6 +120,7 @@ function MemberManagementDialog({ open, member, onClose, onRemove }: MemberManag
 // ── Main Page ────────────────────────────────────────────────────────────────
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import type { DetailedGroup } from '../utils/groupApi';
+import { ErrorBoundary } from '../components/ErrorBoundary/ErrorBoundary';
 
 /**
  * Group Detail Page — Issue #441
@@ -127,6 +128,14 @@ import type { DetailedGroup } from '../utils/groupApi';
  * contribute button, member management options, and responsive design.
  */
 export default function GroupDetailPage() {
+  return (
+    <ErrorBoundary>
+      <GroupDetailContent />
+    </ErrorBoundary>
+  );
+}
+
+function GroupDetailContent() {
   const { params } = useNavigation();
   const { activeAddress } = useWallet();
   const groupId = params.groupId ?? 'demo-group';
