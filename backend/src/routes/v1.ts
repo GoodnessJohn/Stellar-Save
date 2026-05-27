@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { format as fastCsvFormat } from 'fast-csv';
+
 import { RecommendationEngine } from '../recommendation';
 import { ABTestingFramework } from '../ab_testing';
 import { EmailService } from '../email_service';
@@ -27,7 +29,17 @@ export interface V1Services {
 
 export function createV1Router(services: V1Services): Router {
   const router = Router();
-  const { engine, abTest, exportService, backupService, backupScheduler, recoveryService, backupMonitor, eventIndexer, analyticsService } = services;
+  const {
+    engine,
+    abTest,
+    exportService,
+    backupService,
+    backupScheduler,
+    recoveryService,
+    backupMonitor,
+    eventIndexer,
+    analyticsService,
+  } = services;
 
   // Setup analytics middleware
   const analyticsMiddleware = createAnalyticsMiddlewareStack();
@@ -99,7 +111,8 @@ export function createV1Router(services: V1Services): Router {
   router.get('/export/:jobId/download', (req, res) => {
     const job = exportService.getJob(req.params.jobId);
     if (!job) return res.status(404).json({ error: 'Job not found' });
-    if (job.status !== 'completed') return res.status(400).json({ error: 'Job is not completed yet' });
+    if (job.status !== 'completed')
+      return res.status(400).json({ error: 'Job is not completed yet' });
     res.json({ url: job.fileUrl });
   });
 
@@ -145,16 +158,8 @@ export function createV1Router(services: V1Services): Router {
   // Contract Event Indexer Endpoints
   router.get('/events', async (req, res) => {
     try {
-      const {
-        contractId,
-        eventType,
-        startLedger,
-        endLedger,
-        startTime,
-        endTime,
-        limit,
-        offset
-      } = req.query;
+      const { contractId, eventType, startLedger, endLedger, startTime, endTime, limit, offset } =
+        req.query;
 
       const options: any = {};
       if (contractId) options.contractId = contractId as string;
@@ -179,21 +184,21 @@ export function createV1Router(services: V1Services): Router {
       const { contractId } = req.query;
       // Get basic stats about events
       const totalEvents = await (eventIndexer as any).prisma.contractEvent.count({
-        where: contractId ? { contractId: contractId as string } : {}
+        where: contractId ? { contractId: contractId as string } : {},
       });
 
       const eventTypes = await (eventIndexer as any).prisma.contractEvent.groupBy({
         by: ['eventType'],
         where: contractId ? { contractId: contractId as string } : {},
-        _count: { eventType: true }
+        _count: { eventType: true },
       });
 
       res.json({
         totalEvents,
         eventTypeBreakdown: eventTypes.map((type: any) => ({
           type: type.eventType,
-          count: type._count.eventType
-        }))
+          count: type._count.eventType,
+        })),
       });
     } catch (error) {
       console.error('Error fetching event stats:', error);
@@ -202,7 +207,7 @@ export function createV1Router(services: V1Services): Router {
   });
 
   // ── Analytics Endpoints (Issue #558) ────────────────────────────
-  
+
   // Get platform statistics for a specific date
   router.get(
     '/analytics/platform',
@@ -213,11 +218,11 @@ export function createV1Router(services: V1Services): Router {
         const { date } = req.query;
         const targetDate = date ? new Date(date as string) : new Date();
         const stats = await analyticsService.getPlatformStats(targetDate);
-        
+
         if (!stats) {
           return res.status(404).json({ error: 'No analytics data available for this date' });
         }
-        
+
         res.json(stats);
       } catch (error) {
         console.error('Error fetching platform stats:', error);
@@ -234,7 +239,7 @@ export function createV1Router(services: V1Services): Router {
     async (req, res) => {
       try {
         const { startDate, endDate, limit, offset } = req.query;
-        
+
         if (!startDate || !endDate) {
           return res.status(400).json({ error: 'startDate and endDate are required' });
         }
@@ -339,65 +344,57 @@ export function createV1Router(services: V1Services): Router {
   );
 
   // Record an analytics event
-  router.post(
-    '/analytics/events',
-    analyticsMiddleware.writeRateLimit,
-    async (req, res) => {
-      try {
-        const { eventType, eventName, userId, groupId, eventData, sessionId } = req.body;
+  router.post('/analytics/events', analyticsMiddleware.writeRateLimit, async (req, res) => {
+    try {
+      const { eventType, eventName, userId, groupId, eventData, sessionId } = req.body;
 
-        if (!eventType || !eventName) {
-          return res.status(400).json({
-            error: 'eventType and eventName are required',
-          });
-        }
-
-        await analyticsService.recordEvent(
-          eventType,
-          eventName,
-          userId,
-          groupId,
-          eventData,
-          sessionId
-        );
-
-        res.status(201).json({ message: 'Event recorded successfully' });
-      } catch (error) {
-        console.error('Error recording event:', error);
-        res.status(500).json({ error: 'Failed to record event' });
+      if (!eventType || !eventName) {
+        return res.status(400).json({
+          error: 'eventType and eventName are required',
+        });
       }
+
+      await analyticsService.recordEvent(
+        eventType,
+        eventName,
+        userId,
+        groupId,
+        eventData,
+        sessionId
+      );
+
+      res.status(201).json({ message: 'Event recorded successfully' });
+    } catch (error) {
+      console.error('Error recording event:', error);
+      res.status(500).json({ error: 'Failed to record event' });
     }
-  );
+  });
 
   // Generate an analytics report
-  router.post(
-    '/analytics/reports',
-    analyticsMiddleware.writeRateLimit,
-    async (req, res) => {
-      try {
-        const { reportType, reportName, startDate, endDate, generatedBy } = req.body;
+  router.post('/analytics/reports', analyticsMiddleware.writeRateLimit, async (req, res) => {
+    try {
+      const { reportType, reportName, startDate, endDate, generatedBy } = req.body;
 
-        if (!reportType || !reportName || !startDate || !endDate) {
-          return res.status(400).json({
-            error: 'reportType, reportName, startDate, and endDate are required',
-          });
-        }
-
-        const report = await analyticsService.generateReport(
-          reportType,
-          reportName,
-          new Date(startDate),
-          new Date(endDate),
-          generatedBy
-        );
-
-        res.status(201).json(report);
-      } catch (error) {
-        console.error('Error generating report:', error);
-        res.status(500).json({ error: 'Failed to generate report' });
+      if (!reportType || !reportName || !startDate || !endDate) {
+        return res.status(400).json({
+          error: 'reportType, reportName, startDate, and endDate are required',
+        });
       }
+
+      const report = await analyticsService.generateReport(
+        reportType,
+        reportName,
+        new Date(startDate),
+        new Date(endDate),
+        generatedBy
+      );
+
+      res.status(201).json(report);
+    } catch (error) {
+      console.error('Error generating report:', error);
+      res.status(500).json({ error: 'Failed to generate report' });
     }
-  );
+  });
 
   // Get analytics reports
   router.get(
@@ -425,37 +422,72 @@ export function createV1Router(services: V1Services): Router {
   );
 
   // Get cache statistics
-  router.get(
-    '/analytics/cache/stats',
-    analyticsMiddleware.readRateLimit,
-    async (req, res) => {
-      try {
-        const stats = await analyticsService.getCacheStats();
-        res.json(stats);
-      } catch (error) {
-        console.error('Error fetching cache stats:', error);
-        res.status(500).json({ error: 'Failed to fetch cache statistics' });
-      }
+  router.get('/analytics/cache/stats', analyticsMiddleware.readRateLimit, async (req, res) => {
+    try {
+      const stats = await analyticsService.getCacheStats();
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching cache stats:', error);
+      res.status(500).json({ error: 'Failed to fetch cache statistics' });
     }
-  );
+  });
 
   // Clear analytics cache
-  router.post(
-    '/analytics/cache/clear',
-    analyticsMiddleware.writeRateLimit,
-    async (req, res) => {
-      try {
-        const { pattern } = req.body;
-        const cachePattern = pattern || '*';
+  router.post('/analytics/cache/clear', analyticsMiddleware.writeRateLimit, async (req, res) => {
+    try {
+      const { pattern } = req.body;
+      const cachePattern = pattern || '*';
 
-        await analyticsService.clearCache(cachePattern);
-        res.json({ message: 'Cache cleared successfully' });
-      } catch (error) {
-        console.error('Error clearing cache:', error);
-        res.status(500).json({ error: 'Failed to clear cache' });
-      }
+      await analyticsService.clearCache(cachePattern);
+      res.json({ message: 'Cache cleared successfully' });
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+      res.status(500).json({ error: 'Failed to clear cache' });
     }
-  );
+  });
+
+  // Members export (CSV streaming) for tax/accounting
+  // GET /api/members/:address/export.csv
+  router.get('/members/:address/export.csv', async (req, res) => {
+    const { address } = req.params;
+
+    // Delay loading mock data to keep startup fast
+    const { mockTransactions, mockGroups } = await import('../mock_data');
+
+    const transactions = mockTransactions
+      .filter((t) => t.memberAddress === address)
+      .sort((a, b) => a.timestamp - b.timestamp);
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${encodeURIComponent(address)}-contributions-payouts.csv"`
+    );
+
+    // Stream rows without buffering full dataset in memory.
+    const csvStream = fastCsvFormat({
+      headers: ['date', 'group_id', 'type', 'amount', 'transaction_hash'],
+    });
+
+    csvStream.on('error', (err: any) => {
+      console.error('CSV stream error:', err);
+      if (!res.headersSent) res.status(500).end();
+    });
+
+    csvStream.pipe(res);
+
+    for (const t of transactions) {
+      csvStream.write({
+        date: new Date(t.timestamp).toISOString(),
+        group_id: t.groupId,
+        type: t.type,
+        amount: t.amount,
+        transaction_hash: t.stellarTxHash,
+      });
+    }
+
+    csvStream.end();
+  });
 
   return router;
 }
