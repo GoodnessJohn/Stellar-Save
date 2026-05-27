@@ -24,6 +24,7 @@ export const ROUTES = {
   TEMPLATES: "/templates",
   ANALYTICS: "/analytics",
   MEMBER_PROFILE: "/members/:address",
+  SETTINGS_NOTIFICATIONS: "/settings/notifications",
 } as const;
 
 /**
