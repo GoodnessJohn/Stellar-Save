@@ -334,6 +334,14 @@ impl StorageKeyBuilder {
         StorageKey::Group(GroupKey::Archived(group_id))
     }
 
+    /// Creates a key for a member's bid amount in a specific cycle.
+    ///
+    /// Used by the `Bid` payout order: stores the i128 bid submitted by
+    /// `member` for `cycle` in `group_id`.
+    pub fn group_bid_amount(group_id: u64, cycle: u32, member: Address) -> StorageKey {
+        StorageKey::Group(GroupKey::BidAmount(group_id, cycle, member))
+    }
+
     /// Creates a key for a member's individual rating of a group.
     pub fn group_rating(group_id: u64, member: Address) -> StorageKey {
         StorageKey::Group(GroupKey::Rating(group_id, member))

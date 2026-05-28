@@ -437,9 +437,15 @@ impl StellarSaveContract {
         max_members: u32,
         token_address: Address,
         grace_period_seconds: u64,
+        payout_order: crate::payout::PayoutOrder,
     ) -> Result<u64, StellarSaveError> {
         // 1. Authorization: Only the creator can initiate this transaction
         creator.require_auth();
+
+        // 1b. Protocol-level cap: max_members must not exceed MAX_MEMBERS (issue #755)
+        if max_members > crate::group::MAX_MEMBERS {
+            return Err(StellarSaveError::MaxMembersExceeded);
+        }
 
         // 2. Round contribution amount to nearest 0.01 XLM (100,000 stroops)
         // This prevents precision issues with very small amounts
@@ -493,7 +499,7 @@ impl StellarSaveContract {
         // 7. Initialize Group Struct (using rounded amount)
         let current_time = env.ledger().timestamp();
         let min_members = 2; // Default minimum members
-        let new_group = Group::new(
+        let mut new_group = Group::new(
             group_id,
             creator.clone(),
             rounded_amount,
@@ -503,6 +509,7 @@ impl StellarSaveContract {
             current_time,
             0, // grace_period_seconds - using default of 0
         );
+        new_group.payout_order = payout_order;
 
         // 8. Store Group Data
         let group_key = StorageKeyBuilder::group_data(group_id);
@@ -1730,9 +1737,60 @@ impl StellarSaveContract {
         payout_executor::execute_payout(env, group_id)
     }
 
-    // ============================================================================
-    // ISSUE #425: Group Status Management
-    // ============================================================================
+    /// Submits a bid for the current payout cycle in a `Bid`-order group.
+    ///
+    /// The member with the highest bid at payout time wins the cycle payout.
+    /// The bid amount is stored on-chain and replaces any previous bid by the
+    /// same member for the same cycle.
+    ///
+    /// # Arguments
+    /// * `env` - Soroban environment
+    /// * `group_id` - ID of the group
+    /// * `bidder` - Address of the bidding member
+    /// * `bid_amount` - Bid in stroops (must be ≥ 0)
+    ///
+    /// # Returns
+    /// * `Ok(())` - Bid recorded successfully
+    /// * `Err(StellarSaveError::InvalidState)` - Group is not using Bid payout order
+    /// * `Err(StellarSaveError::NotMember)` - Bidder is not a member
+    /// * `Err(StellarSaveError::InvalidAmount)` - Bid amount is negative
+    pub fn bid_for_payout(
+        env: Env,
+        group_id: u64,
+        bidder: Address,
+        bid_amount: i128,
+    ) -> Result<(), StellarSaveError> {
+        bidder.require_auth();
+
+        if bid_amount < 0 {
+            return Err(StellarSaveError::InvalidAmount);
+        }
+
+        let group_key = StorageKeyBuilder::group_data(group_id);
+        let group: Group = env
+            .storage()
+            .persistent()
+            .get(&group_key)
+            .ok_or(StellarSaveError::GroupNotFound)?;
+
+        if group.payout_order != crate::payout::PayoutOrder::Bid {
+            return Err(StellarSaveError::InvalidState);
+        }
+
+        if group.status != GroupStatus::Active {
+            return Err(StellarSaveError::InvalidState);
+        }
+
+        let member_key = StorageKeyBuilder::member_profile(group_id, bidder.clone());
+        if !env.storage().persistent().has(&member_key) {
+            return Err(StellarSaveError::NotMember);
+        }
+
+        let bid_key = StorageKeyBuilder::group_bid_amount(group_id, group.current_cycle, bidder);
+        env.storage().persistent().set(&bid_key, &bid_amount);
+
+        Ok(())
+    }
 
     /// Pauses a group, preventing contributions and payouts.
     ///
@@ -5224,6 +5282,65 @@ mod tests {
         assert_eq!(position, 2);
     }
 
+    // Issue #756: get_next_recipient tests
+    #[test]
+    fn test_get_next_recipient_correct_cycle() {
+        let env = Env::default();
+        let contract_id = env.register(StellarSaveContract, ());
+        let client = StellarSaveContractClient::new(&env, &contract_id);
+        let creator = Address::generate(&env);
+        let member0 = Address::generate(&env);
+        let member1 = Address::generate(&env);
+        let group_id = 1;
+
+        // Create an active group at cycle 1
+        let mut group = Group::new(group_id, creator.clone(), 100, 3600, 5, 2, 12345, 0);
+        group.status = GroupStatus::Active;
+        group.current_cycle = 1;
+        env.storage()
+            .persistent()
+            .set(&StorageKeyBuilder::group_data(group_id), &group);
+
+        // Store reverse-index: position 0 → member0, position 1 → member1
+        env.storage().persistent().set(
+            &StorageKeyBuilder::group_payout_position_index(group_id, 0),
+            &member0,
+        );
+        env.storage().persistent().set(
+            &StorageKeyBuilder::group_payout_position_index(group_id, 1),
+            &member1,
+        );
+
+        // At cycle 1, next recipient should be member1
+        let recipient = client.get_next_recipient(&group_id);
+        assert_eq!(recipient, member1);
+    }
+
+    #[test]
+    fn test_get_next_recipient_cycle_zero() {
+        let env = Env::default();
+        let contract_id = env.register(StellarSaveContract, ());
+        let client = StellarSaveContractClient::new(&env, &contract_id);
+        let creator = Address::generate(&env);
+        let member0 = Address::generate(&env);
+        let group_id = 1;
+
+        let mut group = Group::new(group_id, creator.clone(), 100, 3600, 5, 2, 12345, 0);
+        group.status = GroupStatus::Active;
+        group.current_cycle = 0;
+        env.storage()
+            .persistent()
+            .set(&StorageKeyBuilder::group_data(group_id), &group);
+
+        env.storage().persistent().set(
+            &StorageKeyBuilder::group_payout_position_index(group_id, 0),
+            &member0,
+        );
+
+        let recipient = client.get_next_recipient(&group_id);
+        assert_eq!(recipient, member0);
+    }
+
     #[test]
     fn test_get_payout_position_first_member() {
         let env = Env::default();
@@ -5461,6 +5578,37 @@ mod tests {
 
         let count = client.get_total_groups_created();
         assert_eq!(count, 2);
+    }
+
+    // Issue #755: MAX_MEMBERS boundary condition tests
+    #[test]
+    fn test_create_group_max_members_boundary_valid() {
+        let env = Env::default();
+        let contract_id = env.register(StellarSaveContract, ());
+        let client = StellarSaveContractClient::new(&env, &contract_id);
+        let creator = Address::generate(&env);
+        env.mock_all_auths();
+        let token_address = env
+            .register_stellar_asset_contract_v2(Address::generate(&env))
+            .address();
+        // Exactly MAX_MEMBERS (20) should succeed
+        let result = client.try_create_group(&creator, &100, &3600, &20, &token_address);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_group_max_members_exceeded() {
+        let env = Env::default();
+        let contract_id = env.register(StellarSaveContract, ());
+        let client = StellarSaveContractClient::new(&env, &contract_id);
+        let creator = Address::generate(&env);
+        env.mock_all_auths();
+        let token_address = env
+            .register_stellar_asset_contract_v2(Address::generate(&env))
+            .address();
+        // 21 exceeds MAX_MEMBERS — must return MaxMembersExceeded
+        let result = client.try_create_group(&creator, &100, &3600, &21, &token_address);
+        assert!(result.is_err());
     }
 
     #[test]
