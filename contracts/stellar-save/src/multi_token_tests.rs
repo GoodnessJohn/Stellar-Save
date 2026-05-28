@@ -152,10 +152,10 @@ fn test_contribute_transfers_correct_token() {
 
     // Create group and join
     let group_id = create_group_with_token(&env, &client, &creator, &token);
-    client.join_group(&group_id, &member);
+    client.join_group(&group_id, &member, &None);
 
     // Activate group (need min members — add creator too)
-    client.join_group(&group_id, &creator);
+    client.join_group(&group_id, &creator, &None);
     client.activate_group(&group_id, &creator, &2u32);
 
     // Approve contract to spend member's tokens
@@ -189,8 +189,8 @@ fn test_contribute_wrong_amount() {
     sac.mint(&member, &10_000_000i128);
 
     let group_id = create_group_with_token(&env, &client, &creator, &token);
-    client.join_group(&group_id, &member);
-    client.join_group(&group_id, &creator);
+    client.join_group(&group_id, &member, &None);
+    client.join_group(&group_id, &creator, &None);
     client.activate_group(&group_id, &creator, &2u32);
 
     let token_client = TokenClient::new(&env, &token);
@@ -219,8 +219,8 @@ fn test_contribute_insufficient_allowance() {
     sac.mint(&member, &10_000_000i128);
 
     let group_id = create_group_with_token(&env, &client, &creator, &token);
-    client.join_group(&group_id, &member);
-    client.join_group(&group_id, &creator);
+    client.join_group(&group_id, &member, &None);
+    client.join_group(&group_id, &creator, &None);
     client.activate_group(&group_id, &creator, &2u32);
 
     // No approve call — transfer_from should fail
@@ -302,8 +302,8 @@ fn prop_wrong_amount_rejected() {
     StellarAssetClient::new(&env, &token).mint(&member, &100_000_000i128);
 
     let group_id = create_group_with_token(&env, &client, &creator, &token);
-    client.join_group(&group_id, &member);
-    client.join_group(&group_id, &creator);
+    client.join_group(&group_id, &member, &None);
+    client.join_group(&group_id, &creator, &None);
     client.activate_group(&group_id, &creator, &2u32);
 
     let token_client = TokenClient::new(&env, &token);

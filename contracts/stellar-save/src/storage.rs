@@ -151,6 +151,10 @@ pub enum MemberKey {
     /// Auto-contribution enabled flag: MEMBER_AUTO_CONTRIBUTE_{group_id}_{address}
     /// Tracks whether a member has opted in to automatic contributions at cycle start.
     AutoContribute(u64, Address),
+
+    /// Referral mapping: MEMBER_REFERRAL_{group_id}_{invitee}
+    /// Stores the referrer Address for a given invitee within a group.
+    Referral(u64, Address),
 }
 
 /// Storage keys for contribution tracking.
@@ -405,6 +409,11 @@ impl StorageKeyBuilder {
     /// Creates a key for member auto-contribution enabled flag.
     pub fn member_auto_contribute(group_id: u64, address: Address) -> StorageKey {
         StorageKey::Member(MemberKey::AutoContribute(group_id, address))
+    }
+
+    /// Creates a key for storing the referrer of a member within a group.
+    pub fn member_referral(group_id: u64, invitee: Address) -> StorageKey {
+        StorageKey::Member(MemberKey::Referral(group_id, invitee))
     }
 
     // Contribution key builders

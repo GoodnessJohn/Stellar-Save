@@ -332,13 +332,14 @@ pub struct RefundIssued {
     pub refunded_at: u64,
 }
 
-/// Event emitted when a group is dissolved by unanimous member vote.
+/// Event emitted when a member joins a group via a referral.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct GroupDissolved {
+pub struct MemberReferred {
     pub group_id: u64,
-    pub dissolved_at: u64,
-    pub total_refunded: i128,
+    pub invitee: Address,
+    pub referrer: Address,
+    pub referred_at: u64,
 }
 
 impl EventEmitter {
@@ -884,6 +885,23 @@ impl EventEmitter {
             cloned_at,
         };
         env.events().publish(("group_cloned",), event);
+    }
+
+    /// Emits an event when a member joins a group via a referral.
+    pub fn emit_member_referred(
+        env: &Env,
+        group_id: u64,
+        invitee: Address,
+        referrer: Address,
+        referred_at: u64,
+    ) {
+        let event = MemberReferred {
+            group_id,
+            invitee,
+            referrer,
+            referred_at,
+        };
+        env.events().publish(("member_referred",), event);
     }
 }
 
