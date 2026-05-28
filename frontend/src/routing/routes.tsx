@@ -18,6 +18,7 @@ const MemberDirectoryPage = lazy(() => import("../pages/MemberDirectoryPage"));
 const LeaderboardPage = lazy(() => import("../pages/LeaderboardPage"));
 
 const GroupComparisonPage = lazy(() => import("../pages/GroupComparisonPage"));
+const GroupAnalyticsPage = lazy(() => import("../pages/GroupAnalytics"));
 
 const NotFoundPage = lazy(() => import("../pages/NotFoundPage"));
 const ErrorPage = lazy(() => import("../pages/ErrorPage"));
@@ -64,19 +65,20 @@ export const routeConfig: RouteConfig[] = [
     description: "Discover and join public savings groups",
   },
   {
-
-    path: ROUTES.GROUP_CALENDAR,
-    component: ContributionCalendarPage,
-    protected: true,
-    title: "Contribution Calendar - Stellar Save",
-    description: "View contribution deadlines and payment history",
-
     path: ROUTES.GROUPS_COMPARE,
     component: GroupComparisonPage,
     protected: true,
     title: "Compare Groups - Stellar Save",
     description: "Compare savings groups side-by-side before joining",
 
+  },
+  {
+    path: ROUTES.GROUP_ANALYTICS,
+    component: GroupAnalyticsPage,
+    protected: true,
+    title: "Group Analytics - Stellar Save",
+    description: "Detailed analytics for your savings group",
+    // Permissions will be handled within the component or a dedicated hook
   },
   {
     path: ROUTES.GROUP_DETAIL,

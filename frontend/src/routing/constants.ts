@@ -15,6 +15,7 @@ export const ROUTES = {
   GROUPS_BROWSE: "/groups/browse",
 
   GROUP_CALENDAR: "/groups/:groupId/calendar",
+  GROUP_ANALYTICS: "/groups/:groupId/analytics",
 
   GROUPS_COMPARE: "/groups/compare",
 
@@ -36,5 +37,6 @@ export type RoutePath = (typeof ROUTES)[keyof typeof ROUTES];
 export const buildRoute = {
   groupDetail: (groupId: string) => `/groups/${groupId}`,
   groupCalendar: (groupId: string) => `/groups/${groupId}/calendar`,
+  groupAnalytics: (groupId: string) => `/groups/${groupId}/analytics`,
   groupMembers: (groupId: string) => `/groups/${groupId}/members`,
 } as const;
