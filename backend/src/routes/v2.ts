@@ -1,6 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { V1Services } from './v1';
-import { getSorobanPool } from '../lib/soroban';
+import { randomBytes } from 'crypto';
+
+import { notificationService } from '../notification_service';
+import { prisma } from '../prisma_client';
+import { logger } from '../logger';
 
 /**
  * Transforms a v1 response shape into v2 shape.
@@ -59,6 +63,65 @@ export function createV2Router(services: V1Services): Router {
     const { userId } = req.params;
     const recommendations = engine.getRecommendations(userId, 'collaborative');
     res.json(migrateV1ToV2({ userId, algorithm: 'collaborative', recommendations }));
+  });
+
+  // Group invitation email
+  // POST /api/groups/:groupId/invite
+  router.post('/groups/:groupId/invite', async (req: Request, res: Response) => {
+    try {
+      const { groupId } = req.params;
+      const { email } = req.body as { email?: string };
+
+      if (!groupId) return res.status(400).json(migrateV1ToV2({ error: 'groupId is required' }));
+      if (!email || typeof email !== 'string')
+        return res.status(400).json(migrateV1ToV2({ error: 'email is required' }));
+
+      // Generate token for join link
+      const joinToken = randomBytes(32).toString('hex');
+
+      // Persist invitation in DB
+      const invitation = await (prisma as any).groupInvitation.create({
+        data: {
+          groupId,
+          recipientEmail: email,
+          joinToken,
+          status: 'sent',
+        },
+      });
+
+      const frontendUrl = process.env.FRONTEND_URL || 'https://stellar-save.com';
+      const joinLink = `${frontendUrl}/groups/join?token=${joinToken}`;
+
+      const groupName = `Group ${groupId}`; // TODO: fetch actual group name if available
+      const creatorUserId = 'unknown'; // TODO: extract from auth context
+
+      // Ensure a template exists in the system; use a dedicated template key.
+      const templateKey = 'email_group_invitation';
+      const subject = 'You are invited to join {{groupName}}';
+
+      await notificationService.sendEmail(
+        email,
+        templateKey,
+        {
+          userName: email,
+          groupName,
+          joinLink,
+          creatorUserId,
+        } as any,
+        subject.replace('{{groupName}}', groupName)
+      );
+
+      res.status(201).json(
+        migrateV1ToV2({
+          invitationId: invitation.id,
+          status: 'sent',
+          joinLink,
+        })
+      );
+    } catch (err: any) {
+      logger.error('Failed to send group invitation', { error: err?.message || String(err) });
+      res.status(500).json(migrateV1ToV2({ error: 'Failed to send invitation' }));
+    }
   });
 
   // Backup list — v2 adds pagination
