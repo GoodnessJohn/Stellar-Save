@@ -24,6 +24,7 @@
     "test:visual:ci": "percy exec -- playwright test --config=playwright.visual.config.ts --reporter=github"
   },
   "dependencies": {
+    "@creit.tech/stellar-wallets-kit": "2.2.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.9",
@@ -35,11 +36,9 @@
     "react": "^19.2.0",
     "react-big-calendar": "^1.19.4",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.13.2",
-    "recharts": "2.15.3"
-    "recharts": "^3.8.1"
     "react-i18next": "15.5.1",
     "react-router-dom": "^7.13.2",
+    "recharts": "^3.8.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -80,7 +79,6 @@
     "typescript-eslint": "^8.48.0",
     "vite": "^7.3.1",
     "vitest": "^2.1.8",
-    "lighthouse-ci": "^0.12.0",
     "vitest-axe": "^0.1.0"
   }
 }

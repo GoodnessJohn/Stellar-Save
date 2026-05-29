@@ -11,36 +11,43 @@ import {
 import { Button } from './Button';
 import { useToast } from './Toast/useToast';
 import { useContract } from '../hooks/useContract';
+import { useTransaction, explorerUrl } from '../hooks/useTransaction';
 
 export interface TriggerPayoutButtonProps {
   groupId: string;
-  /** Called after a successful payout transaction */
   onSuccess?: (txHash: string) => void;
 }
 
 export function TriggerPayoutButton({ groupId, onSuccess }: TriggerPayoutButtonProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const { executePayout, loading } = useContract();
+  const { executePayout } = useContract();
+  const { state, txHash, error, execute } = useTransaction();
   const { addToast } = useToast();
 
-  const isPending = loading.executePayout;
+  const isPending = state === 'pending';
 
   const handleConfirm = async () => {
     setConfirmOpen(false);
-    const result = await executePayout({ groupId: BigInt(groupId) });
-    if (result.error) {
-      addToast({ type: 'error', message: result.error.message || 'Payout failed. Please try again.' });
-    } else {
-      addToast({ type: 'success', message: `Payout triggered successfully! TX: ${result.txHash}` });
-      onSuccess?.(result.txHash!);
-    }
+    await execute(async () => {
+      const result = await executePayout({ groupId: BigInt(groupId) });
+      if (result.error) throw new Error(result.error.message);
+      return result.txHash!;
+    });
   };
+
+  // Show toast after state settles
+  if (state === 'confirmed' && txHash) {
+    addToast({ type: 'success', message: `Payout triggered! TX: ${txHash}`, duration: 5000 });
+    onSuccess?.(txHash);
+  } else if (state === 'failed' && error) {
+    addToast({ type: 'error', message: error });
+  }
 
   return (
     <>
       <Button
         variant="primary"
-        size="large"
+        size="lg"
         onClick={() => setConfirmOpen(true)}
         disabled={isPending}
         aria-label="Trigger payout"
@@ -54,6 +61,20 @@ export function TriggerPayoutButton({ groupId, onSuccess }: TriggerPayoutButtonP
           'Trigger Payout'
         )}
       </Button>
+
+      {state === 'confirmed' && txHash && (
+        <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+          <a href={explorerUrl(txHash)} target="_blank" rel="noopener noreferrer">
+            View on Explorer →
+          </a>
+        </Typography>
+      )}
+
+      {state === 'failed' && error && (
+        <Typography variant="caption" color="error" display="block" sx={{ mt: 1 }}>
+          {error}
+        </Typography>
+      )}
 
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Confirm Payout</DialogTitle>

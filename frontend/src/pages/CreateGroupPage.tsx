@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CreateGroupForm } from '../components/CreateGroupForm'; // Adjust path if needed
-import { useWallet } from '../wallet/WalletProvider';
+import { CreateGroupForm } from '../components/CreateGroupForm';
+import { useWallet } from '../hooks/useWallet';
 import type { GroupData } from '../utils/groupApi';
 
 const CreateGroupPage: React.FC = () => {
-  const { publicKey } = useWallet();
+  const { activeAddress } = useWallet();
   const navigate = useNavigate();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [txStatus, setTxStatus] = useState<string>('');
 
   const handleSubmit = async (data: GroupData) => {
-    if (!publicKey) {
+    if (!activeAddress) {
       alert("Please connect your Freighter wallet first!");
       return;
     }
