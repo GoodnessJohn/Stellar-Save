@@ -300,6 +300,14 @@ function PayoutRotationTimeline({ entries }: { entries: PayoutEntry[] }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function GroupDetailPage() {
+  return (
+    <ErrorBoundary>
+      <GroupDetailContent />
+    </ErrorBoundary>
+  );
+}
+
+function GroupDetailContent() {
   const { params } = useNavigation();
   const { activeAddress } = useWallet();
   const groupId = params.groupId ?? 'demo-group';
