@@ -183,6 +183,11 @@ if (process.env.INDEXER_ENABLED === 'true') {
   eventIndexer.start().catch(console.error);
 }
 
+// Start analytics resync job if enabled
+if (process.env.ANALYTICS_RESYNC_ENABLED === 'true') {
+  startAnalyticsResyncJob(process.env.ANALYTICS_RESYNC_SCHEDULE || '0 * * * *'); // default: top of every hour
+}
+
 const services = { engine, abTest, exportService, backupService, backupScheduler, recoveryService, backupMonitor, eventIndexer };
 
 // ── Auth routes (public — no JWT required) ───────────────────────────────────
